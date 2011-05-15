@@ -897,18 +897,28 @@ intersection search for the patterns in the files.  Patterns and
 files can be intermixed, and the determination as to whether a
 specified argument is a pattern or a file is whether it exists in
 the filesystem; i.e. if it exists as a file, then it is treated as a
-file, otherwise it's treated as a pattern.  This can be overridden by
-preceding the specific argument with the -e and -f options; you can
-search for something that is in fact a file name by using -e first
-(e.g. search -e /etc/passwd ~/scripts/* will find scripts that
-reference /etc/passwd), and -f can be used to ensure that a name is
-treated like a file.  -e and -f are also used to ensure that
-something that would normally be treated like an option or file name
-to search are treated like expressions and files;
+file, otherwise it's treated as a pattern, so the following two
+commands are equivalent:
+
+    search.py israel /etc/passwd bash
+and
+    search.py /etc/passwd israel bash 
+
+and will both search for /etc/passwd entries containing the strings
+israel and bash.
+
+The determination of a string as an search expression or file can be
+overridden by preceding the specific argument with the -e and -f
+options; you can search for something that is in fact a file name by
+using -e first (e.g. search -e /etc/passwd ~/scripts/* will find
+scripts that reference /etc/passwd), and -f can be used to ensure
+that a name is treated like a file.  -e and -f are also used to
+ensure that something that would normally be treated like an option
+or file name to search are treated like expressions and files;
 e.g. "search -e -e -f -f" will search for the string "-e" within a
 file named "-f".
 
-arguments can be:
+Arguments to search.py can be:
  1) a file or directory name to search
  2) a regexp to look for in the files
  3) one of the following options:

@@ -954,7 +954,28 @@ display args, -dc, -df, -dl, -dn, -db
        non-start/end processing) [fname: contents]
  -dn - like 'dl' but with lines numbered [fname:lineNumber:contents]
  -db - show filenames before each line or block of lines [fname::\\n,contents]
+'''
+    if showDoc:
+        helpstr += '''
+Expression Matching:
 
+All files specified will be searched for all the specified
+expressions.  A -v option turns off matching for all subsequent
+expressions (same semantics as 'grep'), until turned back on with a
++v option and a -i option will make all the matching of all
+subsequent expressions be case-insensitive (again, as 'grep' does)
+until turned back on with a +i option.
+'''
+    if showExamples:
+        helpstr += '''
+Example:
+   search.py dir1 dir2 '[Rr]ed' -v '[Bb]lue' +v '[Gg]reen' 
+   - Search files in dir1 and dir2 for lines containing 'red' and
+     'green' (either capitalized or lower-case) but not 'blue' (also
+     either capitalized or lower-case).
+'''
+    if showDoc:
+        helpstr += '''
 Filename Matching:
 
 If any filename expressions are given to match, then files must match at
@@ -970,15 +991,6 @@ Example:
 '''
     if showDoc:
         helpstr += '''
-Matching:
-
-All files specified will be searched for all the specified
-expressions.  A -v option turns off matching for all subsequent
-expressions (same semantics as 'grep'), until turned back on with a
-+v option and a -i option will make all the matching of all
-subsequent expressions be case-insensitive (again, as 'grep' does)
-until turned back on with a +i option.
-
 File Processing:
 
 A normal filename will be searched for the presence (or absence) of
@@ -1054,8 +1066,8 @@ XML block search::
 
     Searchs all 'people*.xml' files under the sourcedir, looking for
     Person elements that contain both the string "Joe" and the
-    string "manager" somewhere within any XML "Person"
-    blocks in any matching files.
+    string "manager" somewhere within any XML "Person" blocks in any
+    matching files.
 
 Whole file search
    search.py bin/ -fe .py "import.*tarfile" "import.*re" -whole -df

@@ -1,0 +1,226 @@
+Search.py - An Incremental Introduction
+
+Quick Summary
+-------------
+
+search.py is a utility for searching through files and output
+streams, similar to grep, but with the ability to specify multiple
+search patterns that could apply to the content, patterns specifying
+what should be looked for or be skipped, the ability to apply search
+patterns to the filenames to be searched as well, along with more
+sophisticated processing of certain types of files and the ability
+to examine files in terms of blocks of lines and not just single
+lines.
+
+At its basic level, search is a lot like grep, where you can search
+a file or set of files for a string, e.g. to search for the word
+'error' in a log file
+
+    search.py error /var/log/mail.log
+
+or to search a stream for a string,
+
+    output-generating-command | search.py strToFind
+
+do case-insensitive searches,
+
+    search.py -i error /var/log/*.log
+
+or searches where the match is inverted (i.e. where the search
+string is skipped).
+
+    search.py -v "^#" ~/.bashrc
+
+Differences from 'grep' and Other Existing Search Tools
+-------------------------------------------------------
+
+The order of parameters to search.py is less important, so you can
+switch up the order, so both
+
+    search.py bash /etc/passwd
+and
+    search.py /etc/passwd bash
+
+will find users in /etc/passwd that use the bash shell.  The
+interpretation of parameters as files or search terms is based on
+whether they exist as files, but a file can be used as a search term
+by preceding it with '-e' (for the sake of command aliases, one can
+also ensure that a term is treated as a file, if if it doesn't
+exist, by preceding it with '-f').
+
+Adding Search Terms
+-------------------
+
+You can add more search terms to a search query, which would act
+like a cascaded set of greps.  Looking for lines in a color
+configuration file that contain both green, blue and purple (in any
+order) could be done with
+
+    search.py MyColors.cfg green blue purple
+
+And you can add the other options (like -i and -v) when adding
+search terms, so looking for users in the passwd file who use bash
+but aren't based in /home can be done with
+
+    search.py /etc/passwd bash -v -e /home/
+
+Here it uses -v to invert the match for the search term "/home/" but
+not for the search term "bash", along with -e to ensure that /home/
+is treated as a search term and not a filesystem target to be
+searched.
+
+BTW, search terms default to be interpreted as regular expressions,
+e.g.
+
+    ls -R | search.py .java
+
+will find filenames with any character followed by the string
+'java'; if one were looking for files with the java extension, the
+correct call should instead be
+
+    ls -R | search.py '[.]java'
+
+Alternatively, the "-s" option says to treat subsequent search
+expressions as strings; so one could instead do
+
+    ls -R | search.py -s .java
+
+Adding Filesystem Targets
+-------------------------
+
+Like grep, search.py can have multiple files added to the search
+invocation line for additional files to be searched.  If a directory
+is added as a search target, then files underneath the directory
+recursively are searched (like 'grep -r'), e.g.
+
+    search.py /var/log domain error
+
+Other types of files are handling more intelligently; if a file with
+the extension .gz is searched, the contents will be gunzipped first
+and then examined; e.g.
+
+    search.py /var/log/*.log*.gz error -v "too many errors"
+
+will search all archived log files for errors, skipping the error
+message "too many errors".
+
+If the file is a .tar or .zip file, then it is treated like a
+pseudo-directory and each of the contained files will be searched;
+this also applies to files that are both gzipped and tarred, files
+with the extensions .tgz or .tar.gz.  For example, one could take a
+snapshot of /var/log with "tar cvzf /tmp/varlog.tgz /var/log" and
+then search it later with
+
+    search.py /tmp/varlog.tgz postfix error
+
+Restricting Files To Be Searched
+--------------------------------
+
+While it's useful to be able to search for files underneath
+directories and within zip and tar files, often a search needs to be
+more targeted to specific files.  For that purpose the -fe (Filename
+Expression) option is provided.  Filename expressions work like
+search expressions except they each need to be preceded by the '-fe'
+option and they apply to the names of files and not to their
+contents.  For example, this could be used to restrict searches to
+source code files only within a project hierarchy, e.g.
+
+    search.py myMethod projArchive.tar -fe '[.]java$'
+
+Where this searches the tarred project archive for references to
+'myMethod', only examining .java files.
+
+the '-v' (invert match) option could be used or added to skip files
+from consideration, for example modifying the previous search to
+also skip any unit test files by doing
+
+    search.py myMethod projArchive.tar -fe '[.]java$' -v -fe Test.java
+
+One other difference between file expressions and search expressions
+is that if there multiple expressions that specify files to be
+examined, files only need to match any one of those, so one could
+search a C++ project hierarchy as follows:
+
+    search.py variable1 '=' Cproj/src -fe '[.]cpp$' -fe '[.]hh$'
+
+which searches for references to variable1 in assignment statements
+under the Cproj/src directory, examing files that with either .cpp
+or .hh extensions.
+
+Displaying the Search Results
+-----------------------------
+
+There are a number of different ways to display the results of a
+search.  Options to control the display are -dl, -dc, -df -dn, and
+-db, each of which says whether to include the filename, the line
+number, and the actual file contents.  These can occur anywhere on
+the calling line, and the last one applies to all generated output.
+
+The -dl option is the most common option, in which each matching
+line is shown, preceded by the filename with a colon separator.
+This is like 'grep's default for multiple file searches.  If you
+specify -df, then only filenames containing matches are shown, each
+matching file listed only once. The -dc option shows the contents
+only, without the filenames.  -dn displays the filenames and line
+numbers before the content, and -db displays the content as a block
+with the filename and line number before it on a separate line.
+
+Working With Blocks of Lines from Files
+---------------------------------------
+
+Often a search needs to find a block of lines containing a  search
+expression, or to look for multiple search expressions that do
+not occur on the same line, but instead within a block of lines.  To
+handle these searches, search.py has the -start and -end options.
+These options each will precede search expressions that describe the
+line boundaries of blocks of the file to be searched.  So when a
+-start expression and -end expression are given, all blocks of the
+file starting with the start expression and ending with the end
+expression (inclusive) are searched for the specified search terms,
+ignoring sections of the file that don't occur within those blocks.
+
+For example, if we have XML files which have structured information
+about people surrounded by '<Person>' and '</Person>' tags and which
+have name and role information underneath, we do a search for people
+named 'Joe' with the role of 'manager' by doing
+
+   search.py -start "<Person" -end "</Person>" "Joe" "manager"
+       sourcedir/ -fe 'people.*[.]xml'
+
+which would find and output all blocks of lines starting a line
+containing "<Person" and ending with a line containing "</Person>",
+and which contain the strings "Joe" and "manager" anywhere within
+that block, not looking at any lines that are not within the
+'<Person>' and '</Person>' tags.
+
+The -start and -end options don't need to both be specified; if
+only the -start option is given, then blocks are any series of lines
+starting with lines matching that expression, and continuing till
+just before the next occurrence of that expression (or until the end
+of the file).  Conversely, specifying only the -end option will
+include all blocks which end with an occurrence of that
+expression. For example, one could search a file of mail messages
+separated by "^From " with a call like
+
+  search.py -dc -start "^From " addr@host -v "status report" Mailfile*
+
+which would search for the "addr@host" string in any message within
+a concatenated mail file, skipping any messages that contain the
+string "status report", and then because of the -dc (contents only)
+option, output those messages without the filenames, but only the
+content, which would be in such a way that the output is a valid
+mail file.
+
+One special case of a block search is where searches need to operate
+on the entire file.  Since there is no expression that can be used
+with -start to represent only the first line of the file, and no
+expression that can be used with -end to represent only the last
+line of the file, a -whole option is supplied to support that case.
+This can be used to do a search like
+
+   search.py bin/ -fe .py "import.*tarfile" "import.*re" -whole -df
+
+which will find all python files within a bin directory that import
+both the tarfile and re modules, and list only the filenames that
+match.
+

@@ -3,16 +3,26 @@ Search.py - An Incremental Introduction
 Quick Summary
 -------------
 
-search.py is a utility for searching through files and output
-streams, similar to grep, but with the ability to specify multiple
-search patterns that could apply to the content, patterns specifying
-what should be looked for or be skipped, the ability to apply search
-patterns to the filenames to be searched as well, along with more
-sophisticated processing of certain types of files and the ability
-to examine files in terms of blocks of lines and not just single
-lines.
+search.py is a powerful utility for searching through files and
+output streams, similar to grep, but with the ability to specify
+multiple search patterns, descending into directories and archives,
+and the ability to define blocks of lines to be searched as a whole.
 
-At its basic level, search is a lot like grep, where you can search
+The key features of search.py are:
+
+    * Accepts multiple search patterns which can be positive
+      (identifying content to be found) or negative (identifying
+      content to be skipped); these search patterns can be specified
+      both for file content and for filenames, to determine which
+      files are to be searched.
+
+    * Can descend into directories, compressed files, and archive
+      files (tar and zip) to check the underlying content.
+
+    * Can do searches on multi-line blocks of files (not just single
+      lines) to find multiple search targets in context.
+
+At its basic level, search looks a lot like grep, where you can search
 a file or set of files for a string, e.g. to search for the word
 'error' in a log file
 
@@ -34,8 +44,8 @@ string is skipped).
 Differences from 'grep' and Other Existing Search Tools
 -------------------------------------------------------
 
-The order of parameters to search.py is less important, so you can
-switch up the order, so both
+The order of parameters to search.py is less important, allowing you
+to switch up the order of search patterns and targets, so both
 
     search.py bash /etc/passwd
 and
@@ -43,18 +53,20 @@ and
 
 will find users in /etc/passwd that use the bash shell.  The
 interpretation of parameters as files or search terms is based on
-whether they exist as files, but a file can be used as a search term
-by preceding it with '-e' (for the sake of command aliases, one can
-also ensure that a term is treated as a file, if if it doesn't
-exist, by preceding it with '-f').
+whether they exist as files, so the second search above won't search
+for occurrences of /etc/passwd in bash.  A file can be used as a
+search term by preceding it with '-e' (for the sake of command
+aliases, one can also ensure that a term is treated as a file, if it
+doesn't exist, by preceding it with '-f').
 
 Adding Search Terms
 -------------------
 
 You can add more search terms to a search query, which would act
-like a cascaded set of greps.  Looking for lines in a color
-configuration file that contain both green, blue and purple (in any
-order) could be done with
+like a cascaded set of greps.  And since search terms and files
+aren't positional, you can just add them to the end of the calling
+line.  Looking for lines in a color configuration file that contain
+both green, blue and purple (in any order) could be done with
 
     search.py MyColors.cfg green blue purple
 
@@ -101,7 +113,8 @@ and then examined; e.g.
 
     search.py /var/log/*.log*.gz error -v "too many errors"
 
-will search all archived log files for errors, skipping the error
+will search all archived log files for errors, looking through the
+original text and not the compressed text, and skipping the error
 message "too many errors".
 
 If the file is a .tar or .zip file, then it is treated like a
@@ -123,12 +136,12 @@ Expression) option is provided.  Filename expressions work like
 search expressions except they each need to be preceded by the '-fe'
 option and they apply to the names of files and not to their
 contents.  For example, this could be used to restrict searches to
-source code files only within a project hierarchy, e.g.
+java source code files only within a archived project hierarchy, e.g.
 
     search.py myMethod projArchive.tar -fe '[.]java$'
 
-Where this searches the tarred project archive for references to
-'myMethod', only examining .java files.
+where this searches the tarred project archive for references to
+'myMethod', but only examining the .java files in the tar file.
 
 the '-v' (invert match) option could be used or added to skip files
 from consideration, for example modifying the previous search to
@@ -159,11 +172,12 @@ the calling line, and the last one applies to all generated output.
 The -dl option is the most common option, in which each matching
 line is shown, preceded by the filename with a colon separator.
 This is like 'grep's default for multiple file searches.  If you
-specify -df, then only filenames containing matches are shown, each
-matching file listed only once. The -dc option shows the contents
-only, without the filenames.  -dn displays the filenames and line
-numbers before the content, and -db displays the content as a block
-with the filename and line number before it on a separate line.
+specify -df, then only the filenames containing matches are shown,
+each matching file listed only once. The -dc option shows the
+contents only, without the filenames.  -dn displays the filenames
+and line numbers before the content, and -db displays the content as
+a block with the filename and line number before it on a separate
+line.
 
 Working With Blocks of Lines from Files
 ---------------------------------------
@@ -193,14 +207,15 @@ and which contain the strings "Joe" and "manager" anywhere within
 that block, not looking at any lines that are not within the
 '<Person>' and '</Person>' tags.
 
-The -start and -end options don't need to both be specified; if
-only the -start option is given, then blocks are any series of lines
+The -start and -end options don't need to both be specified; if only
+the -start option is given, then blocks are any series of lines
 starting with lines matching that expression, and continuing till
 just before the next occurrence of that expression (or until the end
 of the file).  Conversely, specifying only the -end option will
-include all blocks which end with an occurrence of that
-expression. For example, one could search a file of mail messages
-separated by "^From " with a call like
+include all blocks which end with an occurrence of that expression,
+starting after the end of the previous block. For example, one could
+search a file of mail messages separated by "^From " with a call
+like
 
   search.py -dc -start "^From " addr@host -v "status report" Mailfile*
 
@@ -208,8 +223,8 @@ which would search for the "addr@host" string in any message within
 a concatenated mail file, skipping any messages that contain the
 string "status report", and then because of the -dc (contents only)
 option, output those messages without the filenames, but only the
-content, which would be in such a way that the output is a valid
-mail file.
+content, which would end up being in such a way that the output is a
+valid mail file.
 
 One special case of a block search is where searches need to operate
 on the entire file.  Since there is no expression that can be used

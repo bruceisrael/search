@@ -421,7 +421,7 @@ def defineOpts(state):
     # -i|+i - turn on/off case-insensitive matching (like 'grep -i')
     opts.append(BooleanSettingsOpt(state, "IgnoreCase",
                                    enable = "-i", disable = "+i"))
-    # -s|+s - turn on/off treating subsequent matching expressions as 
+    # -s|+s - turn on/off treating subsequent matching expressions as
     #   search strings (vs as regular expressions)
     opts.append(BooleanSettingsOpt(state, "TreatExprsAsStrings",
                                    enable = "-s", disable = "+s"))
@@ -430,7 +430,7 @@ def defineOpts(state):
     #   it's a file or an expression) or not
     opts.append(BooleanSettingsOpt(state, "ExprOnly",
                                    enable = "-E", disable = "+E"))
-    # -F|+F - Treat subsequent parameters as only filesytem objects or not 
+    # -F|+F - Treat subsequent parameters as only filesytem objects or not
     opts.append(BooleanSettingsOpt(state, "FilesOnly",
                                    enable = "-F", disable = "+F"))
     # -se option is used to display software errors also
@@ -438,17 +438,17 @@ def defineOpts(state):
                             matching = "-se", value = True))
     # dc - display only matching file contents
     opts.append(SettingsOpt(state, "DisplayHandler",
-                            matching = "-dc", 
+                            matching = "-dc",
                             value = lambda name, num, line: (
                               doDisplay(None, None, False, line))))
     # df - display just filenames
     opts.append(SettingsOpt(state, "DisplayHandler",
-                            matching = "-df", 
+                            matching = "-df",
                             value = lambda name, num, line: (
                               doDisplay(name, None, False, None))))
     # dl - display filename with matching lines
     opts.append(SettingsOpt(state, "DisplayHandler",
-                            matching = "-dl", 
+                            matching = "-dl",
                             value = lambda name, num, line: (
                               doDisplay(name, None, False, line))))
     # dn - display filename with line numbers and matching lines
@@ -459,7 +459,7 @@ def defineOpts(state):
     # db - display blocks of lines with filename and line number on a separate
     # preceding line
     opts.append(SettingsOpt(state, "DisplayHandler",
-                            matching = "-db", 
+                            matching = "-db",
                             value = lambda name, num, line: (
                               doDisplay(name, num, True, line))))
     # indicate delimeters for block searching
@@ -554,13 +554,13 @@ class ExprHandler:
         self.state = state
         # instantiate state AT THE TIME OF CONSTRUCTION
         #   of state variables invertMatch and ignoreCase
-        # invertMatch is used to partition expression list into skip and 
+        # invertMatch is used to partition expression list into skip and
         #   match lists; any expressions on the skip list force a match failure
         self.invertMatch = state.getState("InvertMatch")
         # ignoreCase is used to control match processing
         self.ignoreCase = state.getState("IgnoreCase")
         # TreatExprsAsStrings is used to pass strings for matching
-        self.treatExprsAsStrings = state.getState("TreatExprsAsStrings")        
+        self.treatExprsAsStrings = state.getState("TreatExprsAsStrings")
         if self.ignoreCase:
             self.searchExpr = self.searchExpr.lower()
         if not self.treatExprsAsStrings:
@@ -701,9 +701,11 @@ class DirFileReader:
             errorMessage(self.state, "USER",
                   "Cannot read directory %s" % fname)
             return []
+        # work around bug where os.path.normpath('//etc/passwd') ==> '//etc/passwd'
+        dirprefix = ifElse(fname == "/", "/", fname + "/")
         fullnames = map(lambda file:
                           SearchableFileHandler(
-                            os.path.normpath(fname + "/" + file), self.state),
+                            os.path.normpath(dirprefix + file), self.state),
                         members)
         return fullnames
 
@@ -866,13 +868,20 @@ class RegularFileReader:
     def isCollection(self, fileref):
         return False
     def getContents(self, fileref):
-        if fileref.openFile:
-            openfile = fileref.openFile
-        else:
-            openfile = open(fileref.getName())
-        for line in openfile.readlines():
-            yield line
-        openfile.close()
+        # The following 'try' is due to the fact that searching a
+        # device file could open successfully but throw an error on
+        # content retrieval
+        try:
+            if fileref.openFile:
+                openfile = fileref.openFile
+            else:
+                openfile = open(fileref.getName())
+            for line in openfile.readlines():
+                yield line
+            openfile.close()
+        except Exception, e:
+            errorMessage(self.state, "USER",
+                         "Error: Problem getting file contents for %s: %s" % (fileref, e))
 
 
 #################################################################
@@ -902,7 +911,7 @@ commands are equivalent:
 
     search.py israel /etc/passwd bash
 and
-    search.py /etc/passwd israel bash 
+    search.py /etc/passwd israel bash
 
 and will both search for /etc/passwd entries containing the strings
 israel and bash.
@@ -922,7 +931,7 @@ Arguments to search.py can be:
  1) a file or directory name to search
  2) a regexp to look for in the files
  3) one of the following options:
- -e <expr> - the following argument is treated as an expression to be 
+ -e <expr> - the following argument is treated as an expression to be
              matched (even if it matches a filename or other option)
  -f <file> - the following argument is treated as a file to be searched
              (give an error if it doesn't exist); specified filename
@@ -938,9 +947,9 @@ Arguments to search.py can be:
       ignoring case
  +i - case sensitive matching; following expressions should match
       case (cancels a previous -i)
- -s - Don't interpret subsequent expressions as regular expressions but 
+ -s - Don't interpret subsequent expressions as regular expressions but
       just treat them as strings
- +s - treat subsequent expressions as regular expressions (cancels a 
+ +s - treat subsequent expressions as regular expressions (cancels a
       previous -s)
  -start <expr> - use the specified expression to denote the beginning
                  of blocks that cross line boundaries that are matched
@@ -969,7 +978,7 @@ until turned back on with a +i option.
     if showExamples:
         helpstr += '''
 Example:
-   search.py dir1 dir2 '[Rr]ed' -v '[Bb]lue' +v '[Gg]reen' 
+   search.py dir1 dir2 '[Rr]ed' -v '[Bb]lue' +v '[Gg]reen'
    - Search files in dir1 and dir2 for lines containing 'red' and
      'green' (either capitalized or lower-case) but not 'blue' (also
      either capitalized or lower-case).

@@ -14,7 +14,7 @@ import tarfile
 import zipfile
 import signal
 
-def ifElse(a,b,c): return (b,c)[not a]
+def if_else(cond, tstmt, fstmt): return (tstmt, fstmt)[not cond]
 
 def errorMessage(state, errortype, msg):
     '''
@@ -97,6 +97,12 @@ class SearchStrategyLines(SearchStrategy):
         for line in contents:
             linenum += 1
             yield (line, linenum)
+
+# TODO: allow multiple -start and -end args which act as an 'or'
+#    e.g. "-start defun -start defmacro -end "^$"
+# TODO: implement "up to but not including" block strategy
+# e.g. "-start '^ *def' -end-before '^ *def' is like just -start
+#  maybe -start-skip/end-skip?
 
 class SearchStrategyBlocks(SearchStrategy):
     def __init__(self, state):
@@ -290,7 +296,7 @@ class GlobalState:
             UnreadableFileReader(self),
             DirFileReader(self),
             TarFileReader(self),
-            ZipFileReader(self),
+            ZipAndJarFileReader(self),
             CompressFileReader(self),
             GzipFileReader(self),
             RegularFileReader(self)
@@ -403,7 +409,7 @@ def defineOpts(state):
     Options that take additional information can consume parameters
     for use and which will not get further parsed.
     '''
-    opts=[]
+    opts = []
     # -f - following arg is a filesytem object to be searched
     opts.append(Opt("-f", state, True, SearchableFileHandler, state.FileList))
     # -e - following arg is a search expression
@@ -492,8 +498,8 @@ class Opt:
         self.consume = consume
         self.handler = handler
         self.varlist = varlist
-    def match(self, str):
-        return str == self.optstr
+    def match(self, string):
+        return string == self.optstr
     def handle(self, param, args):
         if self.consume: param = args.pop(0)
         self.varlist.append(self.handler(param, self.state))
@@ -572,7 +578,7 @@ class ExprHandler:
                              (self.searchExpr, e))
     def __str__(self):
         return "string%s matching %s" % (
-            ifElse(self.invertMatch, " not", ""), self.searchExpr)
+            if_else(self.invertMatch, " not", ""), self.searchExpr)
     def exprMatches(self, checkstr):
         '''Check if the string matches this expression.'''
         # Take into account the ignoreCase flag by lowercasing both the
@@ -580,12 +586,12 @@ class ExprHandler:
         if self.ignoreCase:
             checkstr = checkstr.lower()
         # This method is set up to return a True/False value, so the
-        # following ifElse calls ensure that.  This way the return
+        # following if_else calls ensure that.  This way the return
         # value can used in a comparison.
         if self.treatExprsAsStrings:
-            return ifElse(checkstr.find(self.searchExpr) >= 0, True, False)
+            return if_else(checkstr.find(self.searchExpr) >= 0, True, False)
         else:
-            return ifElse(re.search(self.compiledExpr, checkstr), True, False)
+            return if_else(re.search(self.compiledExpr, checkstr), True, False)
 
 class SearchableFileHandler:
     def __init__(self, fname, state, openFile = None):
@@ -602,7 +608,7 @@ class SearchableFileHandler:
                          "No reader found for %s" % self.fname)
     def getName(self): return self.fname
     def __str__(self):
-        return "%sfile named %s" % (ifElse(self.openFile, "opened ", ""),
+        return "%sfile named %s" % (if_else(self.openFile, "opened ", ""),
                                     self.getName())
     def findReader(self, state):
         for reader in state.fileReaders:
@@ -618,6 +624,7 @@ class SearchableFileHandler:
         # child may match the required names
         if self.reader.isCollection(self):
             return True
+        #TODO: fix bug below which returns an error for devices; e.g. /dev/null
         if not self.openFile and not os.path.isfile(self.fname):
             errorMessage(self.state, "USER", "Non-existent file: %s" % self.fname)
         return False
@@ -682,7 +689,7 @@ class DirFileReader:
     """
     def __init__(self, state):
         self.state = state
-        self.dirsChecked=[]
+        self.dirsChecked = []
     def appliesTo(self, fileref):
         if fileref.openFile: return False
         return os.path.isdir(fileref.getName())
@@ -702,7 +709,7 @@ class DirFileReader:
                   "Cannot read directory %s" % fname)
             return []
         # work around bug where os.path.normpath('//etc/passwd') ==> '//etc/passwd'
-        dirprefix = ifElse(fname == "/", "/", fname + "/")
+        dirprefix = if_else(fname == "/", "/", fname + "/")
         fullnames = map(lambda file:
                           SearchableFileHandler(
                             os.path.normpath(dirprefix + file), self.state),
@@ -758,19 +765,19 @@ class GzipFileReader:
         return [searchFile]
 
 
-class ZipFileReader:
+class ZipAndJarFileReader:
     """
-    a search reader to handle zipped files.
+    a search reader to handle zipped files and jar files.
 
-    Applicable only for files matching '*.zip'.
+    Applicable only for files matching '*.zip' or '*.jar'.
 
     This will be a collection of the files within the zip file.
     """
     def __init__(self, state):
         self.state = state
-        self.ext = ".zip"
+        self.exts = [".zip", ".jar", ".war"]
     def appliesTo(self, fileref):
-        return fileref.matchesOneOf([self.ext])
+        return fileref.matchesOneOf(self.exts)
     def isCollection(self, fileref):
         return True
     def getMembers(self, fileref):
@@ -780,7 +787,7 @@ class ZipFileReader:
                 zipcontainer = zipfile.ZipFile(fileref.openFile, "r")
             except Exception, e:
                 errorMessage(self.state, "SOFTWARE",
-                             "Can't open zipfile %s (from open file)"
+                             "Can't open %s (from open file)"
                              " to get members: %s" % (fname, e))
                 return
         else:
@@ -881,14 +888,15 @@ class RegularFileReader:
             openfile.close()
         except Exception, e:
             errorMessage(self.state, "USER",
-                         "Error: Problem getting file contents for %s: %s" % (fileref, e))
+                         "Error: Problem getting file contents for %s: %s" % (
+                    fileref, e))
 
 
 #################################################################
 # File comments/doc
 
 def getHelpString(level):
-    helpstr=''
+    helpstr = ''
     (showDoc, showExamples) = (False, False)
     if level > 0:
         showDoc = True
@@ -1113,3 +1121,8 @@ if __name__ == '__main__':
 #   * expects start and end strings to be on separate lines, so will not
 #     correctly searching a block like:
 #     <Person><Name>Mentor</Name><Location>Arisia</Location></Person>
+#
+# Other TODOs:
+# TODO: add a .7z (seven-zip) reader
+# TODO: add an option to skip descending into collections files
+#    (.tar, .zip, etc.) 

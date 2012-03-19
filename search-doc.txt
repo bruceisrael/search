@@ -1,0 +1,174 @@
+
+search - search mutiple files for multiple patterns
+
+Usage:
+ search <args> ...
+
+search takes a number of patterns and a number of files and does an
+intersection search for the patterns in the files.  Patterns and
+files can be intermixed, and the determination as to whether a
+specified argument is a pattern or a file is whether it exists in
+the filesystem; i.e. if it exists as a file, then it is treated as a
+file, otherwise it's treated as a pattern, so the following two
+commands are equivalent:
+
+    search.py israel /etc/passwd bash
+and
+    search.py /etc/passwd israel bash
+
+and will both search for /etc/passwd entries containing the strings
+israel and bash.
+
+The determination of a string as an search expression or file can be
+overridden by preceding the specific argument with the -e and -f
+options; you can search for something that is in fact a file name by
+using -e first (e.g. search -e /etc/passwd ~/scripts/* will find
+scripts that reference /etc/passwd), and -f can be used to ensure
+that a name is treated like a file.  -e and -f are also used to
+ensure that something that would normally be treated like an option
+or file name to search are treated like expressions and files;
+e.g. "search -e -e -f -f" will search for the string "-e" within a
+file named "-f".
+
+Arguments to search.py can be:
+ 1) a file or directory name to search
+ 2) a regexp to look for in the files
+ 3) one of the following options:
+ -e <expr> - the following argument is treated as an expression to be
+             matched (even if it matches a filename or other option)
+ -f <file> - the following argument is treated as a file to be searched
+             (give an error if it doesn't exist); specified filename
+             may be "-" to indicate searching standard input, which
+             is the default if no files are given
+ -fe <expr> - the following argument is treated as an expression
+              to match file names
+ -v - matching is inverted; any following expressions and filename
+      expressions should not match
+ +v - matching is normal; any following expressions and filename
+      expressions should match again (cancels a previous -v)
+ -i - case insensitive matching; following expressions should match
+      ignoring case
+ +i - case sensitive matching; following expressions should match
+      case (cancels a previous -i)
+ -s - Don't interpret subsequent expressions as regular expressions but
+      just treat them as strings
+ +s - treat subsequent expressions as regular expressions (cancels a
+      previous -s)
+ -start <expr> - use the specified expression to denote the beginning
+                 of blocks that cross line boundaries that are matched
+ -end <expr> - use the specified expression to denote the end of blocks
+               that cross line boundaries that are matched
+display args, -dc, -df, -dl, -dn, -db
+     (contents only, files only, label lines, number lines, label blocks)
+ -dc - don't show filenames at all [contents]
+ -df - show only filenames, not contents [fname]
+ -dl - show filenames at the beginning of every line (the default for
+       non-start/end processing) [fname: contents]
+ -dn - like 'dl' but with lines numbered [fname:lineNumber:contents]
+ -db - show filenames before each line or block of lines [fname::\n,contents]
+
+Expression Matching:
+
+All files specified will be searched for all the specified
+expressions.  A -v option turns off matching for all subsequent
+expressions (same semantics as 'grep'), until turned back on with a
++v option and a -i option will make all the matching of all
+subsequent expressions be case-insensitive (again, as 'grep' does)
+until turned back on with a +i option.
+
+Example:
+   search.py dir1 dir2 '[Rr]ed' -v '[Bb]lue' +v '[Gg]reen'
+   - Search files in dir1 and dir2 for lines containing 'red' and
+     'green' (either capitalized or lower-case) but not 'blue' (also
+     either capitalized or lower-case).
+
+Filename Matching:
+
+If any filename expressions are given to match, then files must match at
+least one to be processed.  If any filename expressions are given to exclude,
+then filenames matching any of those will be skipped.
+
+Example:
+   search.py myMethod ~/src -fe '[.]cc$' -fe '[.]h$' -v -fe '[0-9][.]'
+   - Search only the .cc and .h files under ~/src for references to myMethod,
+     but skip any files that have a digit before the period in the name.
+
+File Processing:
+
+A normal filename will be searched for the presence (or absence) of
+each of the specified expressions.  If the specified file is:
+
+a directory - then all files below it are searched
+*.gz - the file is first gunzipped, then searched
+*.zip - the file is first unzipped, then searched
+*.tar - the file is first untarred, then all those files are searched
+*.tgz - the file is first gunzipped and untarred, then all those
+        files are searched
+
+Examples:
+
+search.py bash -v -e /home/ /etc/passwd /etc/passwd.old
+  - search for users in /etc/passwd and /etc/passwd.old who use the bash
+    shell and don't have a home directory in /home
+search.py postfix /etc -fe '[.]conf' -df
+  - find all .conf files in /etc that mention postfix and show only
+    the file names.
+search.py -s ".myMethod(" myArchivedProject.tar.gz -fe .java -v -fe Test.java +s "^[ \t]*//"
+  - explore the contents of the specified gzipped tar file,
+    searching for calls to the method 'myMethod(' in any files with
+    the archive named .java except for unit test files (named
+    *Test.java), and skip any comment lines whose first
+    non-whitespace characters are "//" comments.
+
+Start/End processing:
+
+if no -start and -end patterns are given, then blocks are
+<beginning-of-line> ... <end-of-line>, and by default filenames will
+be displayed at the beginning of the line unless otherwise specified.
+
+if both a -start and -end is given, then only blocks of lines
+starting with the <start> expression and ending with the <end>
+expression will be searched and lines outside those regions will be
+ignored.
+
+if only a -start is given, then blocks will be file contents from
+the start expression up through but not including the next start
+expression. Lines prior to the first -start expression will be
+skipped.
+
+if only a -end is given, then blocks will be file contents starting after
+the previous end expression up through and including the next end
+expression. Lines after the final -end expression will be skipped.
+
+If start and/or end expressions are specified, then by default, filenames
+will be printed prior to the block (-db) unless otherwise specified.
+
+Start and end expression specifications (and the related -whole
+parameter) allow one to build searches such as:
+
+mail file search:
+  search.py -dc -start "\nFrom " addr@host -v "status report" Mailfile*
+
+  Searchs for the "addr@host" string in any multi-line block
+  of the mail files, delimited by "\nFrom " (the standard convention
+  for separating mail messages in a single file) and which at the
+  same time does not contain the string "status report", and
+  then concatenate the results in such a way that the output is a
+  valid mail file
+
+XML block search::
+   search.py -dc -start "<Person" -end "</Person>" "Joe" "manager"
+       sourcedir/ -fe 'people.*[.]xml'
+
+    Searchs all 'people*.xml' files under the sourcedir, looking for
+    Person elements that contain both the string "Joe" and the
+    string "manager" somewhere within any XML "Person" blocks in any
+    matching files.
+
+Whole file search
+   search.py bin/ -fe .py "import.*tarfile" "import.*re" -whole -df
+     find all python scripts in the bin/ directory that import the
+     tarfile and re modules anywhere in the file, showing only the
+     filename.
+
+Usage: /home/israel/BI/bin/search.py [ [ -f ] <file or dir> | [ -e ] <search-expr> | -fe <filename-expr> | -start <block-start-expr> | -end <block-end-expr> | -whole | -v | +v | -i | +i | -s | +s | -E | +E | -F | +F | -se | -d[cflbn] ] ...

@@ -622,9 +622,8 @@ class SearchableFileHandler:
         # Directories (actually, any collections such as tar and zip
         # files too) should not be tested for required names since a
         # child may match the required names
-        if self.reader.isCollection(self):
+        if self.reader.isCollection(self) or os.devnull == self.fname:
             return True
-        #TODO: fix bug below which returns an error for devices; e.g. /dev/null
         if not self.openFile and not os.path.isfile(self.fname):
             errorMessage(self.state, "USER", "Non-existent file: %s" % self.fname)
         return False

@@ -13,6 +13,7 @@ import gzip
 import tarfile
 import zipfile
 import signal
+from StringIO import StringIO
 
 def if_else(cond, tstmt, fstmt): return (tstmt, fstmt)[not cond]
 
@@ -622,7 +623,8 @@ class SearchableFileHandler:
                                     self.getName())
     def findReader(self, state):
         for reader in state.fileReaders:
-            if reader.appliesTo(self): return reader
+            if reader.appliesTo(self):
+                return reader
     def matchesOneOf(self, exts):
         fname = self.fname.lower()
         for ext in exts:
@@ -798,25 +800,37 @@ class ZipAndJarFileReader:
         zipref = fname
         if fileref.openFile:
             zipref = fileref.openFile
-
         try:
             zipcontainer = zipfile.ZipFile(zipref, "r")
         except Exception, e:
-            errorMessage(self.state, "USER","Can't get members from %s: %s" % (fileref, e))
+            errorMessage(self.state, "USER",
+                             "Can't get members from %s: %s" % (fileref, e))
             return
         for member in sorted(zipcontainer.namelist()):
             if not member.endswith("/"):
                 name = createContainedFileName(fname, member)
                 try:
-                    openFile = zipcontainer.open(member, "r")
-                    yield SearchableFileHandler(name, self.state, openFile)
+                    strcontents = getZipMember(zipcontainer, member)
+                    yield SearchableFileHandler(name, self.state, strcontents)
                 except Exception, ex:
-                    errorMessage(self.state, "SOFTWARE",
+                    errorMessage(self.state, "USER",
                                  "Couldn't access zip file %s (from open file): %s" % (name, ex))
         zipcontainer.close()
     def getContents(self, fileref):
         return None
 
+# The following function returns a File object for a member within a
+# zip file.  It reads the entire zip file member into a StringIO
+# string buffer (yes, this will be a problem if the zip/jar file
+# member is very large), but is needed because the zipfile module
+# doesn't correctly recognize a zipfile within a zipfile (possibly
+# because the File object returned by zipfile.open() doesn't have a
+# seek() method implemented), but putting the contents into a
+# StringIO wrapper allows it to correctly recognize them.
+def getZipMember(container, member):
+    openFile = container.open(member, "r")
+    strcontents = StringIO(openFile.read())
+    return strcontents
 
 class CompressFileReader:
     """
@@ -1145,5 +1159,3 @@ if __name__ == '__main__':
 #
 # Other TODOs:
 # TODO: add a .7z (seven-zip) reader
-# TODO: add an option to skip descending into collections files
-#    (.tar, .zip, etc.)

@@ -263,6 +263,11 @@ class PartitionedExprs:
             return True
         # If any expressions in the positive match list match, then we match
         return self.doAnyMatch(searchstr, self.matchList, True)
+    def isAtLeastOneSatisfiedBy(self, searchstr):
+        if self.shouldSkip(searchstr):
+            return False
+        # If any expressions in the positive match list match, then we match
+        return self.doAnyMatch(searchstr, self.matchList, True)
     def doAnyMatch(self, searchstr, exprs, expectedValue):
         '''See if any expressions in the expressions list evaluate to
         the expected value.'''
@@ -280,6 +285,7 @@ class GlobalState:
         self.FileList = []
         self.SearchExprList = []
         self.FilenameExprList = []
+        self.SkipCollectionsExprList = []
         self.blockStart = []
         self.blockEnd = []
         # Set up the different types of files that can be read,
@@ -328,6 +334,8 @@ class GlobalState:
         self.SearchExprs = PartitionedExprs(self.SearchExprList)
         # Partition Filename Expressions list
         self.FilenameExprs = PartitionedExprs(self.FilenameExprList)
+        # Partition Skip Collections Expressions list
+        self.SkipCollectionsExprs = PartitionedExprs(self.SkipCollectionsExprList)
         # Set search strategy
         if self.getState("WholeFile"):
             self.searchStrategy = SearchStrategyWholeFile(self)
@@ -416,6 +424,8 @@ def defineOpts(state):
     opts.append(Opt("-e", state, True, ExprHandler, state.SearchExprList))
     # -fe - following arg is a filename expression to match
     opts.append(Opt("-fe", state, True, ExprHandler, state.FilenameExprList))
+    # -sc - following arg is a filename expression for collections to skip descending within
+    opts.append(Opt("-sc", state, True, ExprHandler, state.SkipCollectionsExprList))
     # -help|--help - displays program help
     opts.append(SettingsOpt(state, "ShowHelp",
                             matching = "-help", value = 1))
@@ -748,6 +758,8 @@ class GzipFileReader:
         return True
     def getMembers(self, fileref):
         fname = fileref.getName()
+        if self.state.SkipCollectionsExprs.isAtLeastOneSatisfiedBy(fname):
+            return []
         try:
             if fileref.openFile:
                 openFile = gzip.GzipFile(None, "r", 9, fileref.openFile)
@@ -781,21 +793,26 @@ class ZipAndJarFileReader:
         return True
     def getMembers(self, fileref):
         fname = fileref.getName()
+        if self.state.SkipCollectionsExprs.isAtLeastOneSatisfiedBy(fname):
+            return
+        zipref = fname
         if fileref.openFile:
-            try:
-                zipcontainer = zipfile.ZipFile(fileref.openFile, "r")
-            except Exception, e:
-                errorMessage(self.state, "SOFTWARE",
-                             "Can't open %s (from open file)"
-                             " to get members: %s" % (fname, e))
-                return
-        else:
-            zipcontainer = zipfile.ZipFile(fname, "r")
+            zipref = fileref.openFile
+
+        try:
+            zipcontainer = zipfile.ZipFile(zipref, "r")
+        except Exception, e:
+            errorMessage(self.state, "USER","Can't get members from %s: %s" % (fileref, e))
+            return
         for member in sorted(zipcontainer.namelist()):
             if not member.endswith("/"):
                 name = createContainedFileName(fname, member)
-                yield SearchableFileHandler(name, self.state,
-                                            zipcontainer.open(member, "r"))
+                try:
+                    openFile = zipcontainer.open(member, "r")
+                    yield SearchableFileHandler(name, self.state, openFile)
+                except Exception, ex:
+                    errorMessage(self.state, "SOFTWARE",
+                                 "Couldn't access zip file %s (from open file): %s" % (name, ex))
         zipcontainer.close()
     def getContents(self, fileref):
         return None
@@ -818,6 +835,9 @@ class CompressFileReader:
     def isCollection(self, fileref):
         return True
     def getMembers(self, fileref):
+        fname = fileref.getName()
+        if self.state.SkipCollectionsExprs.isAtLeastOneSatisfiedBy(fname):
+            return []
         return []
     def getContents(self, fileref):
         return None
@@ -841,6 +861,8 @@ class TarFileReader:
     def getMembers(self, fileref):
         mode = "r"
         fname = fileref.getName()
+        if self.state.SkipCollectionsExprs.isAtLeastOneSatisfiedBy(fname):
+            return
         if fileref.openFile:
             try:
                 tar = tarfile.open(None, mode, fileref.openFile)
@@ -1124,4 +1146,4 @@ if __name__ == '__main__':
 # Other TODOs:
 # TODO: add a .7z (seven-zip) reader
 # TODO: add an option to skip descending into collections files
-#    (.tar, .zip, etc.) 
+#    (.tar, .zip, etc.)

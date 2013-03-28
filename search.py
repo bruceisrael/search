@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # search - grep on steroids
-#     Written by: Bruce Israel <israel@tux.org>, Mon Jan 23 2006
+#     Written by: Bruce Israel <bruce.israel@gmail.com>, Mon Jan 23 2006
 #
 #    **** See end of file for documentation ****
 
@@ -676,7 +676,9 @@ class UnreadableFileReader:
         if fileref.openFile: return False
         if os.path.isdir(fileref.getName()): return False
         fname = fileref.getName()
-        if not os.path.exists(fname): return True
+        if not os.path.exists(fname):
+            errorMessage(self.state, "USER", "Cannot open non-existent file %s" % (fname))
+            return True
         try:
             openfile = open(fname)
         except IOError, ex:

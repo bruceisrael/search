@@ -6,6 +6,7 @@
 #    **** See end of file for documentation ****
 
 import sys
+import traceback
 import os
 import stat
 import re
@@ -88,7 +89,6 @@ class SearchStrategy:
             # work as a sequence generator and reports that it's attempting to
             # loop on a non-sequence object
             errorMessage(self.state, "SOFTWARE", "Type error on file %s" % name)
-
 class SearchStrategyLines(SearchStrategy):
     def __init__(self, state):
         SearchStrategy.__init__(self, state)
@@ -376,12 +376,16 @@ def main(args):
 
 def processFiles(fileList, state):
     for fileref in fileList:
-        # A filename passes the FilenameExprs filters if
-        # 1) NO skip expressions match, and
-        # 2) at least one match expression matches if any are present
-        if (fileref.skipNameCheck() or
-            state.FilenameExprs.areAnySatisfiedBy(fileref.getName())):
-            fileref.searchFile(state)
+        try:
+            # A filename passes the FilenameExprs filters if
+            # 1) NO skip expressions match, and
+            # 2) at least one match expression matches if any are present
+            if (fileref.skipNameCheck() or
+                state.FilenameExprs.areAnySatisfiedBy(fileref.getName())):
+                fileref.searchFile(state)
+        except Exception, ex:
+            tb = traceback.format_exc()
+            errorMessage(state, "USER", "error searching %s: %s" % (fileref, tb))
 
 ################################################################
 # Options Parsing
@@ -399,9 +403,17 @@ def doDisplay(fname, linenum, headerSep, line):
     elif line:
         matchIdFields.append("")
     outputString = ":".join(matchIdFields)
-    if line: outputString = "%s%s" % (outputString, line.rstrip())
-    print outputString
+    if line:
+        outputString = "%s%s" % (outputString, ustr(line.rstrip()))
+    print ustr(outputString)
     return line
+
+# deal with unicode characters more robustly
+def ustr(str):
+    try:
+        return unicode(str, errors='replace')
+    except Exception, e:
+        return str
 
 def defineOpts(state):
     '''Define the options than this script accepts and returns a list.

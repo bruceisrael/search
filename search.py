@@ -16,7 +16,8 @@ import gzip
 import tarfile
 import zipfile
 import signal
-from StringIO import StringIO
+
+from io import BytesIO
 
 def if_else(cond, tstmt, fstmt): return (tstmt, fstmt)[not cond]
 
@@ -412,7 +413,7 @@ def doDisplay(fname, linenum, headerSep, line):
     outputString = ":".join(matchIdFields)
     if line:
         outputString = "%s%s" % (outputString, ustr(line.rstrip()))
-    print ustr(outputString)
+    print(ustr(outputString))
     return line
 
 # deal with unicode characters more robustly
@@ -841,16 +842,16 @@ class ZipAndJarFileReader:
         return None
 
 # The following function returns a File object for a member within a
-# zip file.  It reads the entire zip file member into a StringIO
+# zip file.  It reads the entire zip file member into a BytesIO
 # string buffer (yes, this will be a problem if the zip/jar file
 # member is very large), but is needed because the zipfile module
 # doesn't correctly recognize a zipfile within a zipfile (possibly
 # because the File object returned by zipfile.open() doesn't have a
 # seek() method implemented), but putting the contents into a
-# StringIO wrapper allows it to correctly recognize them.
+# BytesIO wrapper allows it to correctly recognize them.
 def getZipMember(container, member):
     openFile = container.open(member, "r")
-    strcontents = StringIO(openFile.read())
+    strcontents = BytesIO(openFile.read())
     return strcontents
 
 class CompressFileReader:

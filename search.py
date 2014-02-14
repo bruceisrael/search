@@ -418,10 +418,19 @@ def doDisplay(fname, linenum, headerSep, line):
 
 # deal with unicode characters more robustly
 def ustr(str):
-    try:
-        return unicode(str, errors='replace')
-    except Exception as e:
-        return str
+    # TODO: come up with a better way of dealing with this
+    # preserveUnicode: if True, then try to convert the characters appropriately
+    #   if False, then discard nonascii characters; currently discarding seems
+    #   to work better
+    preserveUnicode = False
+    if not preserveUnicode:
+        bstr = str.encode('ascii', 'ignore')
+    else:
+        try:
+            bstr = unicode(str, errors='replace').encode('utf-8')
+        except Exception as e:
+            bstr = str.encode('utf-8')
+    return bstr.decode('utf-8')
 
 def defineOpts(state):
     '''Define the options than this script accepts and returns a list.

@@ -5,6 +5,8 @@
 #
 #    **** See end of file for documentation ****
 
+from __future__ import print_function
+
 import sys
 import traceback
 import os
@@ -35,8 +37,13 @@ def errorMessage(state, errortype, msg):
         show = True
     elif state and state.getState("ShowErrors"):
         show = True
-    if show: print >> sys.stderr, msg
+    if show: showError(msg)
     if abort: sys.exit(1)
+
+def showError(msg):
+    print(msg, file=sys.stderr)
+    # Had been (not compatible with Python3)
+    # print >> sys.stderr, msg
 
 def usage(prog, msg = None):
     # TODO: see if this list can be auto-generated from options definitions
@@ -54,9 +61,9 @@ def usage(prog, msg = None):
             "-se",
             "-d[cflbn]"]
     if msg:
-        print >> sys.stderr, msg
+        showError(msg)
     if prog:
-        print >> sys.stderr, "Usage: %s [ %s ] ..." % (prog, " | ".join(args))
+        showError("Usage: %s [ %s ] ..." % (prog, " | ".join(args)))
     sys.exit(1)
 
 #
@@ -346,7 +353,7 @@ class GlobalState:
             self.searchStrategy = SearchStrategyLines(self)
 
 def signal_handler(signalIgnored, frameIgnored):
-    print >> sys.stderr, 'User interrupt.'
+    showError('User interrupt.')
     sys.exit(0)
 
 def main(args):
@@ -383,7 +390,7 @@ def processFiles(fileList, state):
             if (fileref.skipNameCheck() or
                 state.FilenameExprs.areAnySatisfiedBy(fileref.getName())):
                 fileref.searchFile(state)
-        except Exception, ex:
+        except Exception as ex:
             tb = traceback.format_exc()
             errorMessage(state, "USER", "error searching %s: %s" % (fileref, tb))
 
@@ -412,7 +419,7 @@ def doDisplay(fname, linenum, headerSep, line):
 def ustr(str):
     try:
         return unicode(str, errors='replace')
-    except Exception, e:
+    except Exception as e:
         return str
 
 def defineOpts(state):
@@ -511,7 +518,7 @@ def matchAndStoreOpt(args, opts):
             poss.handle(opt, args)
             return
     # Should never get here
-    print >> sys.stderr, "No handler found for %s" % opt
+    showError("No handler found for %s" % opt)
     sys.exit(1)
 
 class Opt:
@@ -595,7 +602,7 @@ class ExprHandler:
         if not self.treatExprsAsStrings:
             try:
                 self.compiledExpr = re.compile(self.searchExpr)
-            except Exception, e:
+            except Exception as e:
                 errorMessage(self.state, "ABORT",
                              "Error: Invalid expression '%s': %s" %
                              (self.searchExpr, e))
@@ -693,7 +700,7 @@ class UnreadableFileReader:
             return True
         try:
             openfile = open(fname)
-        except IOError, ex:
+        except IOError as ex:
             errorMessage(self.state, "USER", "Cannot open %s: %s" % (fname, ex))
             return True
         openfile.close()
@@ -781,7 +788,7 @@ class GzipFileReader:
                 openFile = gzip.GzipFile(None, "r", 9, fileref.openFile)
             else:
                 openFile = gzip.open(fileref.getName())
-        except Exception, ex:
+        except Exception as ex:
             errorMessage(self.state, "USER",
                          "Couldn't access zip file %s: %s" % (fileref, ex))
             return []
@@ -816,7 +823,7 @@ class ZipAndJarFileReader:
             zipref = fileref.openFile
         try:
             zipcontainer = zipfile.ZipFile(zipref, "r")
-        except Exception, e:
+        except Exception as e:
             errorMessage(self.state, "USER",
                              "Can't get members from %s: %s" % (fileref, e))
             return
@@ -826,7 +833,7 @@ class ZipAndJarFileReader:
                 try:
                     strcontents = getZipMember(zipcontainer, member)
                     yield SearchableFileHandler(name, self.state, strcontents)
-                except Exception, ex:
+                except Exception as ex:
                     errorMessage(self.state, "USER",
                                  "Couldn't access zip file %s (from open file): %s" % (name, ex))
         zipcontainer.close()
@@ -894,7 +901,7 @@ class TarFileReader:
         if fileref.openFile:
             try:
                 tar = tarfile.open(None, mode, fileref.openFile)
-            except Exception, e:
+            except Exception as e:
                 errorMessage(self.state, "SOFTWARE",
                              "Can't open tarfile %s (from open file)"
                              " to get members: %s" % (fname, e))
@@ -902,7 +909,7 @@ class TarFileReader:
         else:
             try:
                 tar = tarfile.open(fname, mode)
-            except Exception, ex:
+            except Exception as ex:
                 errorMessage(self.state, "USER",
                              "Couldn't open file %s: %s" % (fname, ex))
                 return
@@ -935,7 +942,7 @@ class RegularFileReader:
             for line in openfile.readlines():
                 yield line
             openfile.close()
-        except Exception, e:
+        except Exception as e:
             errorMessage(self.state, "USER",
                          "Error: Problem getting file contents for %s: %s" % (
                     fileref, e))
